@@ -1,0 +1,32 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: kafka-spring-cloud-streams
+  cloud:
+    function:
+      definition: pageEventConsumer;pageEventSupplier;kStreamFunction
+    stream:
+      bindings:
+        pageEventConsumer-in-0:
+          destination: T1
+        pageEventSupplier-out-0:
+          destination: T2
+        kStreamFunction-in-0:
+          destination: T2
+        kStreamFunction-out-0:
+          destination: T4
+      kafka:
+        binder:
+          brokers: localhost:9092
+        streams:
+          binder:
+            configuration:
+              commit.interval.ms: 1000
+              default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+              default.value.serde: org.springframework.kafka.support.serializer.JsonSerde
+              spring.json.value.default.type: ma.enset.kafkaspringcloudstreams.entities.PageEvent
+              spring.json.trusted.packages: "*"
+      poller:
+        fixed-delay: 1000

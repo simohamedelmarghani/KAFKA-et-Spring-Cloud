@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kafka Streams - Real-Time Data Analytics</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/smoothie/1.34.0/smoothie.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        body {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: #1e293b;
+            border: 1px solid #334155;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #f59e0b;
+        }
+        .dot.connected {
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+        .dot.error {
+            background: #ef4444;
+        }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+        }
+        .card-label {
+            font-size: 0.875rem;
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .badge {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+        }
+        .card-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+        .chart-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #cbd5e1;
+        }
+        canvas {
+            width: 100%;
+            height: 300px;
+            border-radius: 0.5rem;
+            display: block;
+        }
+        .actions {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+        }
+        .actions h2 {
+            font-size: 1rem;
+            margin-bottom: 0.75rem;
+            color: #cbd5e1;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.6rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button.secondary {
+            background: #10b981;
+        }
+        button.secondary:hover {
+            background: #059669;
+        }
+        #log {
+            margin-top: 0.75rem;
+            font-size: 0.85rem;
+            color: #94a3b8;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Kafka Streams &mdash; Real-Time Page Analytics (Fenêtre 5s)</h1>
+        <div class="status">
+            <span id="statusDot" class="dot"></span>
+            <span id="statusText">Connexion au flux SSE...</span>
+        </div>
+    </header>
+
+    <div class="cards">
+        <div class="card">
+            <div class="card-label"><span class="badge" style="background:#38bdf8;"></span> Page P1 (visites / 5s)</div>
+            <div class="card-value" id="p1Count">0</div>
+        </div>
+        <div class="card">
+            <div class="card-label"><span class="badge" style="background:#f43f5e;"></span> Page P2 (visites / 5s)</div>
+            <div class="card-value" id="p2Count">0</div>
+        </div>
+    </div>
+
+    <div class="chart-box">
+        <div class="chart-title">Courbe en temps réel (Topic T2 &rarr; Kafka Streams &rarr; /analytics)</div>
+        <canvas id="chartCanvas" width="900" height="300"></canvas>
+    </div>
+
+    <div class="actions">
+        <h2>Tester le Producer REST Controller</h2>
+        <div class="btn-group">
+            <button onclick="publishEvent('T2', 'P1')">Publier P1 sur T2 (Analytics)</button>
+            <button onclick="publishEvent('T2', 'P2')">Publier P2 sur T2 (Analytics)</button>
+            <button class="secondary" onclick="publishEvent('T1', 'P1')">Publier P1 sur T1 (Consumer)</button>
+        </div>
+        <div id="log">Prêt.</div>
+    </div>
+</div>
+
+<script>
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+    const p1El = document.getElementById("p1Count");
+    const p2El = document.getElementById("p2Count");
+    const logEl = document.getElementById("log");
+    const canvas = document.getElementById("chartCanvas");
+
+    let courbeP1 = null;
+    let courbeP2 = null;
+
+    if (typeof SmoothieChart !== "undefined") {
+        const smoothie = new SmoothieChart({
+            millisPerPixel: 50,
+            grid: { strokeStyle: '#334155', fillStyle: '#0f172a', lineWidth: 1, millisPerLine: 2000, verticalSections: 4 },
+            labels: { fillStyle: '#94a3b8' },
+            minValue: 0
+        });
+        courbeP1 = new TimeSeries();
+        courbeP2 = new TimeSeries();
+        smoothie.addTimeSeries(courbeP1, { strokeStyle: '#38bdf8', fillStyle: 'rgba(56, 189, 248, 0.15)', lineWidth: 3 });
+        smoothie.addTimeSeries(courbeP2, { strokeStyle: '#f43f5e', fillStyle: 'rgba(244, 63, 94, 0.15)', lineWidth: 3 });
+        smoothie.streamTo(canvas, 500);
+    }
+
+    const eventSource = new EventSource("/analytics");
+
+    eventSource.onopen = () => {
+        statusDot.className = "dot connected";
+        statusText.textContent = "Flux temps réel actif";
+    };
+
+    eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        const p1 = data["P1"] || 0;
+        const p2 = data["P2"] || 0;
+
+        p1El.textContent = p1;
+        p2El.textContent = p2;
+
+        const now = Date.now();
+        if (courbeP1 && courbeP2) {
+            courbeP1.append(now, p1);
+            courbeP2.append(now, p2);
+        }
+    };
+
+    eventSource.onerror = () => {
+        statusDot.className = "dot error";
+        statusText.textContent = "Reconnexion au flux SSE...";
+    };
+
+    async function publishEvent(topic, pageName) {
+        try {
+            const res = await fetch(`/publish/${topic}/${pageName}`);
+            const json = await res.json();
+            logEl.textContent = `Événement publié sur ${topic} : ${JSON.stringify(json)}`;
+        } catch (err) {
+            logEl.textContent = `Erreur lors de la publication : ${err.message}`;
+        }
+    }
+</script>
+</body>
+</html>

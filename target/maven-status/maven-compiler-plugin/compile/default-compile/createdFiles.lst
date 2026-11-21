@@ -1,0 +1,4 @@
+ma\enset\kafkaspringcloudstreams\KafkaSpringCloudStreamsApplication.class
+ma\enset\kafkaspringcloudstreams\web\PageEventRestController.class
+ma\enset\kafkaspringcloudstreams\entities\PageEvent.class
+ma\enset\kafkaspringcloudstreams\services\PageEventService.class
